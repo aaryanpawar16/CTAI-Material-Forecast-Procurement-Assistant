@@ -1,66 +1,76 @@
-# CTAI CTD Hackathon — Material Forecast & Procurement
+CTAI — Material Forecast & Procurement Assistant
+📌 Overview
 
-## Overview
-Predict MasterItemNo and QtyShipped for construction projects and build a procurement plan + vendor discovery.
+CTAI is an AI-powered assistant for construction procurement planning.
+It predicts required materials & equipment (Stage 1), hosts an interactive Streamlit app (Stage 2), integrates vendor lookup via web scraping (Stage 3), aligns procurement with the project schedule in Gantt charts (Stage 4), generates a procurement plan & summary (Stage 5), and includes a lightweight procurement request workflow + dashboard (Stage 6).
 
-## Repo structure
-(Describe the folders — copy the folder structure included earlier.)
+⚙️ Installation & Setup
+1️⃣ Clone repository
+git clone <your_github_repo_url>
+cd CTAI
 
-## Quickstart (run baseline prediction)
-
-1. Create virtual env and install requirements:
-
-```bash
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+2️⃣ Install dependencies
 pip install -r requirements.txt
-2.Preprocess (optional):
-python -m src.data_preprocessing --input data/train.csv --output data/train_preprocessed.csv
-3.Train classifier (baseline):
-python -m src.train_model --train data/train.csv --out artifacts
-4.Create submission using baseline trainer:
-python -m src.make_submission --test data/test.csv --out submission/submission.csv
-5.Run the app (optional):
-cd app
-streamlit run streamlit_app.py
-Submission
-Put submission.csv, README.md, and code files into a zip named submission.zip and upload per hackathon instructions.
-Notes
-This repo contains baseline implementations; tune models and features for better performance.
-Ensure data/test.csv has id column before running predictions.
 
----
+3️⃣ Run the app locally
+streamlit run app/streamlit_app.py
 
-## notebooks/ (scaffolds)
+📊 Workflow
 
-Each notebook below is a simple scaffold you can paste into a Jupyter notebook. Replace the .ipynb placeholders with real notebooks in your repo.
+Train model
 
-### notebooks/01_data_exploration.ipynb (scaffold content as markdown)
+python -m src.train_model_full --train data/train.csv
 
-```markdown
-# 01_data_exploration
 
-- Load train/test
-- Basic value counts, missing value table
-- Distribution of QtyShipped
-- Top MasterItemNo
-notebooks/02_feature_engineering.ipynb
-# 02_feature_engineering
+Generate predictions
 
-- Run src.data_preprocessing.preprocess
-- Create features: project_duration_days, line_pct_of_invoice, invoice_month/dayofweek
-- Encode text features using TF-IDF for ItemDescription
-notebooks/03_model_training.ipynb
-# 03_model_training
+python -m src.predict
 
-- Fit classifier baseline (LightGBM)
-- Fit regressor baseline (LightGBM or median fallback)
-- Cross-validation with GroupKFold
-- Save artifacts
-notebooks/04_submission_generation.ipynb
-# 04_submission_generation
 
-- Load artifacts
-- Run inference on test set
-- Save submission/submission.csv
-```}
+Evaluate submission (Stage 1 scoring)
+
+python src/evaluate_submission.py data/val_ground_truth.csv submission/submission.csv
+
+
+Generate procurement tasks
+
+python procurement/generate_procurement_tasks_from_predictions.py
+
+
+Generate procurement plan & summary
+
+python procurement/generate_procurement_plan.py
+
+
+Generate integrated Gantt
+
+python procurement/generate_gantt_integrated.py
+
+
+Link approved requests (Stage 6)
+
+python procurement/link_approved_requests.py
+
+🌐 Deployment
+
+The app is deployed and publicly accessible here:
+👉 Live Demo Link
+
+📂 Repository
+
+Public GitHub repository link:
+👉 GitHub Repo
+
+📑 Submission
+
+submission.csv → Final predictions
+
+src/ → ML model training, prediction, evaluation, vendor scraper
+
+procurement/ → Procurement plan, Gantt integration, request workflow
+
+app/streamlit_app.py → Streamlit interface
+
+requirements.txt → Dependencies
+
+README.md → This file
