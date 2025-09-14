@@ -6,6 +6,7 @@ import joblib
 import importlib
 import sys
 import types
+import traceback
 
 from src.data_preprocessing import preprocess
 
@@ -17,47 +18,125 @@ REG_GLOBAL_PATH = os.path.join(ARTIFACTS_DIR, 'regressor_global.pkl')
 REG_PER_ITEM_PATH = os.path.join(ARTIFACTS_DIR, 'regressors_per_item.pkl')
 REG_CAT_MAPS_PATH = os.path.join(ARTIFACTS_DIR, 'regressor_cat_mappings.pkl')
 
+# optional download libs (import if available)
+try:
+    import gdown  # google drive friendly downloader
+except Exception:
+    gdown = None
+
+try:
+    import requests
+except Exception:
+    requests = None
+
+
+def _download_model_from_url(url, dest_path):
+    """
+    Attempt to download url -> dest_path.
+    Supports Google Drive share links via gdown (if available), else uses requests.
+    Returns True on success.
+    """
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+    # Normalize Google Drive share links: accept 'https://drive.google.com/file/d/FILE_ID/view'
+    try:
+        if "drive.google.com" in url and gdown:
+            # gdown accepts both full URL and id form
+            gdown.download(url, dest_path, quiet=False)
+            return os.path.exists(dest_path)
+    except Exception:
+        # continue to other methods
+        pass
+
+    # Try requests
+    if requests:
+        try:
+            resp = requests.get(url, stream=True, timeout=120)
+            resp.raise_for_status()
+            with open(dest_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            return os.path.exists(dest_path)
+        except Exception:
+            pass
+
+    # Try gdown fallback even if not drive pattern
+    if gdown:
+        try:
+            gdown.download(url, dest_path, quiet=False)
+            return os.path.exists(dest_path)
+        except Exception:
+            pass
+
+    return False
+
+
+def ensure_model_available(path=CLASSIFIER_PATH):
+    """
+    Ensure the classifier pickle exists locally. If missing, attempt to download using
+    the environment variable MODEL_URL (must be a public direct-download link).
+    Returns (True, msg) on success, (False, error_msg) on failure.
+    """
+    if os.path.exists(path):
+        return True, "Model artifact exists."
+
+    model_url = os.environ.get("MODEL_URL")
+    if not model_url:
+        return False, ("Model artifact not found at path and no MODEL_URL env var set. "
+                       "Set MODEL_URL to a public downloadable URL (Google Drive / S3 / HF) "
+                       "or place the classifier_trainer.pkl into the artifacts/ directory.")
+
+    try:
+        ok = _download_model_from_url(model_url, path)
+        if not ok:
+            return False, f"Attempted download from MODEL_URL but failed. URL: {model_url}"
+        return True, f"Downloaded model from MODEL_URL to {path}."
+    except Exception as e:
+        return False, f"Exception while downloading model: {e}\n{traceback.format_exc()}"
+
 
 def load_trainer(path=CLASSIFIER_PATH):
     """
-    Load the saved trainer object. Handles pickles created under different module names by
-    ensuring compatible class objects are present in sys.modules['__main__'] for unpickling.
+    Load the saved trainer object. If the artifact is missing, attempt to download using MODEL_URL.
+    Also handles unpickling issues by ensuring class definitions exist in __main__.
     """
+    # ensure artifact present (or try download)
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Trainer artifact not found at: {path}")
+        ok, msg = ensure_model_available(path)
+        if not ok:
+            raise FileNotFoundError(f"Trainer artifact not found at: {path}\n{msg}")
+        # else continue to load
 
-    # Try to import the legacy module first, then fallback to the full trainer module
-    tm = None
+    # Try to import trainer module definitions so unpickling can find classes
     tried = []
+    tm = None
     for modname in ('src.train_model', 'src.train_model_full'):
         try:
             tm = importlib.import_module(modname)
             break
         except Exception as e:
             tried.append((modname, str(e)))
+
     if tm is None:
-        # As a last resort, try reloading package
         try:
             import src
             importlib.reload(src)
             tm = importlib.import_module('src.train_model')
         except Exception:
-            # re-raise a helpful message
-            raise ImportError(f"Could not import train model module. Tried: {tried}")
+            raise ImportError(f"Could not import trainer module; attempted: {tried}")
 
-    # Ensure __main__ has compatible class names for unpickling
+    # Prepare __main__ compatibility for unpickling
     main_mod = sys.modules.get('__main__')
     if main_mod is None:
         main_mod = types.ModuleType('__main__')
         sys.modules['__main__'] = main_mod
 
-    # Common class name variations that older pickles might reference
     candidate_class_names = ['BaselineTrainer', 'Trainer']
     for cname in candidate_class_names:
         if not hasattr(main_mod, cname) and hasattr(tm, cname):
             setattr(main_mod, cname, getattr(tm, cname))
 
-    # Also copy train function if present
     if not hasattr(main_mod, 'train') and hasattr(tm, 'train'):
         setattr(main_mod, 'train', getattr(tm, 'train'))
 
@@ -122,7 +201,6 @@ def _build_text_features(df):
         X_text = transform_text_pipeline(df, text_col='ItemDescription')
         return X_text
     except Exception:
-        # fallback zero-array (50 dims assumed earlier); make it dynamic: try to load svd to infer dims
         svd_components = 50
         try:
             import joblib as _jl
@@ -138,8 +216,17 @@ def _build_basic_features(df):
     Build basic feature frame that matches what trainer expects:
     columns: PROJECT_CITY, PROJECT_TYPE, CORE_MARKET, UOM, SIZE_BUILDINGSIZE, PROJECT_FREQ
     """
-    from src.features import add_basic_features
-    return add_basic_features(df)
+    try:
+        from src.features import add_basic_features
+        return add_basic_features(df)
+    except Exception:
+        # Minimal fallback: select available columns and coerce types
+        cols = ['PROJECT_CITY', 'PROJECT_TYPE', 'CORE_MARKET', 'UOM', 'SIZE_BUILDINGSIZE']
+        X = pd.DataFrame()
+        for c in cols:
+            X[c] = df.get(c, pd.Series([np.nan]*len(df)))
+        X['SIZE_BUILDINGSIZE'] = pd.to_numeric(X['SIZE_BUILDINGSIZE'], errors='coerce').fillna(0)
+        return X
 
 
 def _encode_regressor_objects(X, cat_mappings):
@@ -150,7 +237,6 @@ def _encode_regressor_objects(X, cat_mappings):
         X_enc[c] = X_enc[c].fillna('__MISSING__').astype(str)
         if c in cat_mappings:
             uniques = cat_mappings[c]
-            # map known -> index, unknown -> len(uniques)
             X_enc[c] = X_enc[c].apply(lambda v: int(uniques.index(str(v))) if str(v) in uniques else len(uniques))
         else:
             X_enc[c], _ = pd.factorize(X_enc[c])
@@ -178,20 +264,15 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
     trainer = load_trainer(trainer_path)
 
     # Build features as used in training
-    # basic categorical + numeric frame
     X_basic = _build_basic_features(df_test)
-    # text features (SVD)
     X_text = _build_text_features(df_test)
 
-    # combine into a single dataframe X (columns svd_0..svd_N)
     X = X_basic.reset_index(drop=True).copy()
-    # ensure shapes match
     if X_text is None:
         X_text = np.zeros((len(X), 0))
     for i in range(X_text.shape[1]):
         X[f'svd_{i}'] = X_text[:, i]
 
-    # Prepare for categorical expected types (strings)
     for c in ['PROJECT_CITY', 'PROJECT_TYPE', 'CORE_MARKET', 'UOM']:
         if c in X.columns:
             X[c] = X[c].astype(str).fillna('missing')
@@ -211,7 +292,6 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
         preds_raw = [str(int(x)) for x in preds_encoded]
 
     # Map raw predicted IDs to numeric codes using map_str2int if available;
-    # otherwise try to coerce string to int, else set 0.
     map_str2int = load_map_str2int()
     masteritem_out = []
     for s in preds_raw:
@@ -221,16 +301,14 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
             except Exception:
                 masteritem_out.append(0)
         else:
-            # try to coerce to int (for cases where original ids were numeric strings)
             try:
                 masteritem_out.append(int(float(s)))
             except Exception:
-                masteritem_out.append(0)  # fallback code
+                masteritem_out.append(0)
 
     # Load regressors (global + per-item) and categorical mappings for regressor
     reg_global, per_item, cat_mappings = _load_regressors()
 
-    # Build median lookup and global median fallback
     med_lookup = _build_median_lookup('data/train.csv')
     global_median = 1.0
     try:
@@ -241,47 +319,36 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
     except Exception:
         pass
 
-    # Predict QtyShipped: prefer per-item regressor -> global regressor -> median lookup -> global median
     preds_qty = []
-    # create a numeric features frame for regressors; regressors expect same X as classifier used (i.e., X)
     X_reg = X.copy()
-
-    # Encode object columns consistently using saved cat_mappings
     X_reg_enc = _encode_regressor_objects(X_reg, cat_mappings)
 
     for i, s in enumerate(preds_raw):
         q = None
         s_key = str(s)
-
-        # per-item regressor expects the original label key (string). Try both raw and map key forms.
         if per_item and s_key in per_item:
             try:
                 q = float(per_item[s_key].predict(X_reg_enc.iloc[[i]])[0])
             except Exception:
                 q = None
 
-        # try global regressor
         if q is None and reg_global is not None:
             try:
                 q = float(reg_global.predict(X_reg_enc.iloc[[i]])[0])
             except Exception:
                 q = None
 
-        # fallback to train median per item
         if q is None:
             q = med_lookup.get(s_key)
         if q is None:
-            # also try numeric masteritem mapping in med_lookup keys
             try:
                 q = med_lookup.get(str(int(float(s_key))))
             except Exception:
                 q = None
 
-        # final fallback
         if q is None or (isinstance(q, float) and np.isnan(q)):
             q = global_median
 
-        # postprocess: enforce min 1, integer rounding
         try:
             q = float(q)
             q = max(1.0, float(round(q)))
@@ -300,7 +367,6 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
 
 
 if __name__ == '__main__':
-    # quick CLI to generate submission
     out = predict_on_test()
     os.makedirs('submission', exist_ok=True)
     out.to_csv('submission/submission.csv', index=False)
