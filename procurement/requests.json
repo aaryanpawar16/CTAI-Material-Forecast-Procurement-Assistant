@@ -1,0 +1,55 @@
+{
+  "requests": [
+    {
+      "id": 1,
+      "item": "Cable tray",
+      "qty": 10,
+      "needed_by": "2025-10-15",
+      "notes": "For main server hall",
+      "status": "Approved",
+      "created_at": "2025-09-14T09:00:00",
+      "linked_to_procurement": true,
+      "linked_at": "2025-09-14T19:40:56.726446"
+    },
+    {
+      "id": 2,
+      "item": "Ladder splice",
+      "qty": 25,
+      "needed_by": "2025-10-20",
+      "notes": "Urgent requirement",
+      "status": "Pending",
+      "created_at": "2025-09-14T09:15:00"
+    },
+    {
+      "id": 3,
+      "item": "Cooling unit",
+      "qty": 2,
+      "needed_by": "2025-11-01",
+      "notes": "For HVAC system",
+      "status": "Approved",
+      "created_at": "2025-09-14T09:30:00",
+      "linked_to_procurement": true,
+      "linked_at": "2025-09-14T19:40:56.726446"
+    },
+    {
+      "id": 4,
+      "item": "Fire suppression system",
+      "qty": 1,
+      "needed_by": "2025-11-10",
+      "notes": "Safety compliance",
+      "status": "Rejected",
+      "created_at": "2025-09-14T09:45:00"
+    },
+    {
+      "id": 5,
+      "item": "TEST Cable tray",
+      "qty": 5,
+      "needed_by": "2025-10-10",
+      "notes": "Auto-link test",
+      "status": "Approved",
+      "created_at": "2025-09-14T20:50:00",
+      "linked_to_procurement": true,
+      "linked_at": "2025-09-14T20:59:39.579143"
+    }
+  ]
+}

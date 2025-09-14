@@ -1,0 +1,6 @@
+project_id,task_name,start_date,end_date,duration_days
+P001,Design,2025-10-01,2025-10-31,30
+P001,Procurement,2025-10-31,2025-12-30,60
+P001,Material Delivery,2025-12-30,2026-01-29,30
+P001,Installation,2026-01-29,2026-03-10,40
+P001,Testing & Commissioning,2026-03-10,2026-03-30,20

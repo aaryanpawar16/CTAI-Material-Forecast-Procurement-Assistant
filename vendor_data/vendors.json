@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "MasterItemNo": 288,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 288 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+288@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 288 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+288@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 433,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 433 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+433@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 433 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+433@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 258,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 258 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+258@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 258 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+258@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 93,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 93 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+93@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 93 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+93@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 162,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 162 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+162@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 162 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+162@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 416,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 416 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+416@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 416 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+416@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 224,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 224 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+224@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 224 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+224@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 480,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 480 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+480@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 480 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+480@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 203,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 203 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+203@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 203 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+203@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 358,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 358 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+358@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 358 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+358@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 709,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 709 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+709@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 709 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+709@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 42,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 42 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+42@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 42 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+42@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 157,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 157 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+157@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 157 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+157@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 1653,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 1653 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+1653@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 1653 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+1653@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 59,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 59 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+59@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 59 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+59@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 643,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 643 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+643@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 643 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+643@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 808,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 808 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+808@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 808 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+808@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 984,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 984 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+984@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 984 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+984@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 294,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 294 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+294@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 294 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+294@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    },
+    {
+      "MasterItemNo": 81,
+      "vendors": [
+        {
+          "company": "Placeholder Vendor for 81 A",
+          "url": "https://example-vendor-a.com",
+          "location": "Nearest metro",
+          "contact": "procure+81@example.com",
+          "lead_time_days": 14,
+          "min_order_qty": 1
+        },
+        {
+          "company": "Placeholder Vendor for 81 B",
+          "url": "https://example-vendor-b.com",
+          "location": "Nearby city",
+          "contact": "sales+81@example.com",
+          "lead_time_days": 21,
+          "min_order_qty": 10
+        }
+      ]
+    }
+  ]
+}
