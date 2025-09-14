@@ -169,25 +169,76 @@ def _build_median_lookup(train_csv='data/train.csv'):
     return med
 
 
+def _ensure_unpickle_compat():
+    """
+    Try importing modules that may define classes referenced by regressors.
+    Also injects their classes into __main__ to help joblib/pickle unpickle objects.
+    This is best-effort and will not raise on failure; it prints debug info.
+    """
+    tried = []
+    for modname in ('src.train_model_full', 'src.train_model'):
+        try:
+            tm = importlib.import_module(modname)
+            main_mod = sys.modules.get('__main__')
+            if main_mod is None:
+                main_mod = types.ModuleType('__main__')
+                sys.modules['__main__'] = main_mod
+            # copy likely class names into __main__
+            for cname in ('BaselineTrainer', 'Trainer', 'QtyRegressor', 'PerItemRegressor'):
+                if hasattr(tm, cname) and not hasattr(main_mod, cname):
+                    setattr(main_mod, cname, getattr(tm, cname))
+            return True, f"Imported {modname} for unpickle compatibility."
+        except Exception as e:
+            tried.append((modname, str(e)))
+    # nothing imported
+    print("Warning: could not import train modules for unpickle compatibility. Tried:", tried)
+    return False, f"Failed imports: {tried}"
+
+
+def _safe_load(path, friendly_name):
+    """
+    Try to joblib.load(path) but catch exceptions and return (obj, msg).
+    On error returns (None, message-with-traceback)
+    """
+    if not os.path.exists(path):
+        return None, f"{friendly_name} not found at {path}"
+    try:
+        # best-effort: ensure any custom classes are importable
+        _ensure_unpickle_compat()
+        obj = joblib.load(path)
+        return obj, f"Loaded {friendly_name} from {path}"
+    except Exception as e:
+        tb = traceback.format_exc()
+        return None, f"Failed to load {friendly_name} from {path}: {e}\n{tb}"
+
+
 def _load_regressors():
+    """
+    Robustly load optional regressor artifacts (global + per-item + cat maps).
+    If an artifact is missing or unpickling fails, return None / {} and print a helpful message.
+    """
     reg_global = None
     per_item = {}
     cat_maps = {}
-    if os.path.exists(REG_GLOBAL_PATH):
-        try:
-            reg_global = joblib.load(REG_GLOBAL_PATH)
-        except Exception:
-            reg_global = None
-    if os.path.exists(REG_PER_ITEM_PATH):
-        try:
-            per_item = joblib.load(REG_PER_ITEM_PATH)
-        except Exception:
-            per_item = {}
-    if os.path.exists(REG_CAT_MAPS_PATH):
-        try:
-            cat_maps = joblib.load(REG_CAT_MAPS_PATH)
-        except Exception:
-            cat_maps = {}
+
+    rg, msg_rg = _safe_load(REG_GLOBAL_PATH, "global regressor")
+    if rg is not None:
+        reg_global = rg
+    else:
+        print(msg_rg)
+
+    rp, msg_rp = _safe_load(REG_PER_ITEM_PATH, "per-item regressors")
+    if rp is not None:
+        per_item = rp
+    else:
+        print(msg_rp)
+
+    rc, msg_rc = _safe_load(REG_CAT_MAPS_PATH, "regressor category mappings")
+    if rc is not None:
+        cat_maps = rc
+    else:
+        print(msg_rc)
+
     return reg_global, per_item, cat_maps
 
 
@@ -330,12 +381,15 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
             try:
                 q = float(per_item[s_key].predict(X_reg_enc.iloc[[i]])[0])
             except Exception:
+                # safe fallback
+                print(f"Per-item regressor failed for item {s_key} at idx {i}:", traceback.format_exc())
                 q = None
 
         if q is None and reg_global is not None:
             try:
                 q = float(reg_global.predict(X_reg_enc.iloc[[i]])[0])
             except Exception:
+                print(f"Global regressor failed at idx {i}:", traceback.format_exc())
                 q = None
 
         if q is None:
