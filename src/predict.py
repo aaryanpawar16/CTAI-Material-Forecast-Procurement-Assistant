@@ -20,7 +20,7 @@ REG_CAT_MAPS_PATH = os.path.join(ARTIFACTS_DIR, 'regressor_cat_mappings.pkl')
 
 # optional download libs (import if available)
 try:
-    import gdown  # google drive friendly downloader
+    import gdown
 except Exception:
     gdown = None
 
@@ -31,24 +31,13 @@ except Exception:
 
 
 def _download_model_from_url(url, dest_path):
-    """
-    Attempt to download url -> dest_path.
-    Supports Google Drive share links via gdown (if available), else uses requests.
-    Returns True on success.
-    """
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-    # Normalize Google Drive share links: accept 'https://drive.google.com/file/d/FILE_ID/view'
     try:
         if "drive.google.com" in url and gdown:
-            # gdown accepts both full URL and id form
             gdown.download(url, dest_path, quiet=False)
             return os.path.exists(dest_path)
     except Exception:
-        # continue to other methods
         pass
-
-    # Try requests
     if requests:
         try:
             resp = requests.get(url, stream=True, timeout=120)
@@ -60,33 +49,22 @@ def _download_model_from_url(url, dest_path):
             return os.path.exists(dest_path)
         except Exception:
             pass
-
-    # Try gdown fallback even if not drive pattern
     if gdown:
         try:
             gdown.download(url, dest_path, quiet=False)
             return os.path.exists(dest_path)
         except Exception:
             pass
-
     return False
 
 
 def ensure_model_available(path=CLASSIFIER_PATH):
-    """
-    Ensure the classifier pickle exists locally. If missing, attempt to download using
-    the environment variable MODEL_URL (must be a public direct-download link).
-    Returns (True, msg) on success, (False, error_msg) on failure.
-    """
     if os.path.exists(path):
         return True, "Model artifact exists."
-
     model_url = os.environ.get("MODEL_URL")
     if not model_url:
-        return False, ("Model artifact not found at path and no MODEL_URL env var set. "
-                       "Set MODEL_URL to a public downloadable URL (Google Drive / S3 / HF) "
-                       "or place the classifier_trainer.pkl into the artifacts/ directory.")
-
+        return False, ("Model artifact not found and MODEL_URL not set. "
+                       "Place classifier_trainer.pkl into artifacts/ or set MODEL_URL env var.")
     try:
         ok = _download_model_from_url(model_url, path)
         if not ok:
@@ -96,84 +74,10 @@ def ensure_model_available(path=CLASSIFIER_PATH):
         return False, f"Exception while downloading model: {e}\n{traceback.format_exc()}"
 
 
-def load_trainer(path=CLASSIFIER_PATH):
-    """
-    Load the saved trainer object. If the artifact is missing, attempt to download using MODEL_URL.
-    Also handles unpickling issues by ensuring class definitions exist in __main__.
-    """
-    # ensure artifact present (or try download)
-    if not os.path.exists(path):
-        ok, msg = ensure_model_available(path)
-        if not ok:
-            raise FileNotFoundError(f"Trainer artifact not found at: {path}\n{msg}")
-        # else continue to load
-
-    # Try to import trainer module definitions so unpickling can find classes
-    tried = []
-    tm = None
-    for modname in ('src.train_model', 'src.train_model_full'):
-        try:
-            tm = importlib.import_module(modname)
-            break
-        except Exception as e:
-            tried.append((modname, str(e)))
-
-    if tm is None:
-        try:
-            import src
-            importlib.reload(src)
-            tm = importlib.import_module('src.train_model')
-        except Exception:
-            raise ImportError(f"Could not import trainer module; attempted: {tried}")
-
-    # Prepare __main__ compatibility for unpickling
-    main_mod = sys.modules.get('__main__')
-    if main_mod is None:
-        main_mod = types.ModuleType('__main__')
-        sys.modules['__main__'] = main_mod
-
-    candidate_class_names = ['BaselineTrainer', 'Trainer']
-    for cname in candidate_class_names:
-        if not hasattr(main_mod, cname) and hasattr(tm, cname):
-            setattr(main_mod, cname, getattr(tm, cname))
-
-    if not hasattr(main_mod, 'train') and hasattr(tm, 'train'):
-        setattr(main_mod, 'train', getattr(tm, 'train'))
-
-    trainer = joblib.load(path)
-    return trainer
-
-
-def load_label_encoder(path=LABEL_ENCODER_PATH):
-    if not os.path.exists(path):
-        return None
-    return joblib.load(path)
-
-
-def load_map_str2int(path=MAP_STR2INT_PATH):
-    if not os.path.exists(path):
-        return None
-    return joblib.load(path)
-
-
-def _build_median_lookup(train_csv='data/train.csv'):
-    """Median QtyShipped per MasterItemNo (stringified keys)."""
-    if not os.path.exists(train_csv):
-        return {}
-    df = pd.read_csv(train_csv)
-    if 'MasterItemNo' not in df.columns or 'QtyShipped' not in df.columns:
-        return {}
-    df['MasterItemNo_str'] = df['MasterItemNo'].astype(str).str.strip()
-    df['QtyShipped_num'] = pd.to_numeric(df['QtyShipped'], errors='coerce')
-    med = df.groupby('MasterItemNo_str')['QtyShipped_num'].median().to_dict()
-    return med
-
-
 def _ensure_unpickle_compat():
     """
-    Try importing modules that may define classes referenced by regressors.
-    Also injects their classes into __main__ to help joblib/pickle unpickle objects.
-    This is best-effort and will not raise on failure; it prints debug info.
+    Best-effort: import train modules and inject likely classes into __main__
+    so pickle can locate them.
     """
     tried = []
     for modname in ('src.train_model_full', 'src.train_model'):
@@ -183,27 +87,24 @@ def _ensure_unpickle_compat():
             if main_mod is None:
                 main_mod = types.ModuleType('__main__')
                 sys.modules['__main__'] = main_mod
-            # copy likely class names into __main__
             for cname in ('BaselineTrainer', 'Trainer', 'QtyRegressor', 'PerItemRegressor'):
                 if hasattr(tm, cname) and not hasattr(main_mod, cname):
                     setattr(main_mod, cname, getattr(tm, cname))
-            return True, f"Imported {modname} for unpickle compatibility."
+            return True, f"Imported {modname}"
         except Exception as e:
             tried.append((modname, str(e)))
     # nothing imported
-    print("Warning: could not import train modules for unpickle compatibility. Tried:", tried)
+    print("Warning: unpickle compatibility imports failed. Tried:", tried)
     return False, f"Failed imports: {tried}"
 
 
 def _safe_load(path, friendly_name):
     """
-    Try to joblib.load(path) but catch exceptions and return (obj, msg).
-    On error returns (None, message-with-traceback)
+    Try loading with joblib but catch and return (obj, message)
     """
     if not os.path.exists(path):
         return None, f"{friendly_name} not found at {path}"
     try:
-        # best-effort: ensure any custom classes are importable
         _ensure_unpickle_compat()
         obj = joblib.load(path)
         return obj, f"Loaded {friendly_name} from {path}"
@@ -212,41 +113,152 @@ def _safe_load(path, friendly_name):
         return None, f"Failed to load {friendly_name} from {path}: {e}\n{tb}"
 
 
+def load_label_encoder(path=LABEL_ENCODER_PATH):
+    if not os.path.exists(path):
+        return None
+    try:
+        return joblib.load(path)
+    except Exception:
+        print("[predict] failed to load label encoder:", traceback.format_exc())
+        return None
+
+
+def load_map_str2int(path=MAP_STR2INT_PATH):
+    if not os.path.exists(path):
+        return None
+    try:
+        return joblib.load(path)
+    except Exception:
+        print("[predict] failed to load map_str2int:", traceback.format_exc())
+        return None
+
+
+def _build_median_lookup(train_csv='data/train.csv'):
+    if not os.path.exists(train_csv):
+        return {}
+    try:
+        df = pd.read_csv(train_csv)
+        if 'MasterItemNo' not in df.columns or 'QtyShipped' not in df.columns:
+            return {}
+        df['MasterItemNo_str'] = df['MasterItemNo'].astype(str).str.strip()
+        df['QtyShipped_num'] = pd.to_numeric(df['QtyShipped'], errors='coerce')
+        med = df.groupby('MasterItemNo_str')['QtyShipped_num'].median().to_dict()
+        return med
+    except Exception:
+        print("[predict] failed to build medians:", traceback.format_exc())
+        return {}
+
+
+def load_trainer(path=CLASSIFIER_PATH):
+    """
+    Robust trainer loader:
+    - attempts to ensure artifact is present (download via MODEL_URL if not)
+    - attempts to joblib.load the trainer (with unpickle compatibility)
+    - on failure, returns a DummyTrainer that returns a safe trivial prediction
+    """
+    # ensure artifact present (or attempt download)
+    if not os.path.exists(path):
+        ok, msg = ensure_model_available(path)
+        if not ok:
+            # do not raise here — return dummy trainer below
+            print(f"[predict] trainer missing and could not download: {msg}")
+        else:
+            print(f"[predict] downloaded trainer: {msg}")
+
+    # attempt to load
+    if os.path.exists(path):
+        try:
+            _ensure_unpickle_compat()
+            trainer = joblib.load(path)
+            print(f"[predict] Loaded trainer from {path}")
+            return trainer
+        except Exception as e:
+            print("=== ERROR: failed to load trainer artifact ===")
+            print(traceback.format_exc())
+
+    # fallback: build DummyTrainer
+    print("[predict] Returning DummyTrainer fallback — predictions will be trivial but app will remain functional.")
+
+    # choose a fallback label: label_encoder first class or most-common in train.csv or "0"
+    fallback_label = None
+    try:
+        le = load_label_encoder()
+        if le is not None and hasattr(le, 'classes_') and len(le.classes_) > 0:
+            fallback_label = str(le.classes_[0])
+            print("[predict] fallback_label from label_encoder:", fallback_label)
+    except Exception:
+        pass
+
+    if fallback_label is None:
+        try:
+            df_train = pd.read_csv('data/train.csv')
+            if 'MasterItemNo' in df_train.columns:
+                mc = df_train['MasterItemNo'].astype(str).mode()
+                if not mc.empty:
+                    fallback_label = mc.iloc[0]
+                    print("[predict] fallback_label from train.csv most-frequent:", fallback_label)
+        except Exception:
+            pass
+
+    if fallback_label is None:
+        fallback_label = "0"
+        print("[predict] no fallback label, using '0'")
+
+    class DummyTrainer:
+        def __init__(self, label):
+            self._label = label
+            try:
+                self._label_int = int(float(label))
+            except Exception:
+                self._label_int = None
+
+        def predict_classifier(self, X):
+            n = len(X)
+            # Try to use label_encoder to map to encoded integers if possible
+            try:
+                le = load_label_encoder()
+                if le is not None:
+                    # If le has transform, try it
+                    try:
+                        arr = le.transform([self._label] * n)
+                        return np.array(arr, dtype=int)
+                    except Exception:
+                        pass
+                    if hasattr(le, 'classes_'):
+                        classes = [str(x) for x in le.classes_]
+                        if str(self._label) in classes:
+                            idx = classes.index(str(self._label))
+                            return np.array([idx] * n, dtype=int)
+            except Exception:
+                print("[DummyTrainer] label encoder mapping failed:", traceback.format_exc())
+
+            if self._label_int is not None:
+                return np.array([self._label_int] * n, dtype=int)
+            return np.zeros(n, dtype=int)
+
+    return DummyTrainer(fallback_label)
+
+
 def _load_regressors():
     """
-    Robustly load optional regressor artifacts (global + per-item + cat maps).
-    If an artifact is missing or unpickling fails, return None / {} and print a helpful message.
+    Robustly attempt to load optional regressors and category mappings.
+    Returns (reg_global_or_None, per_item_dict_or_empty, cat_mappings_or_empty)
     """
-    reg_global = None
-    per_item = {}
-    cat_maps = {}
-
-    rg, msg_rg = _safe_load(REG_GLOBAL_PATH, "global regressor")
-    if rg is not None:
-        reg_global = rg
-    else:
-        print(msg_rg)
-
-    rp, msg_rp = _safe_load(REG_PER_ITEM_PATH, "per-item regressors")
-    if rp is not None:
-        per_item = rp
-    else:
-        print(msg_rp)
-
-    rc, msg_rc = _safe_load(REG_CAT_MAPS_PATH, "regressor category mappings")
-    if rc is not None:
-        cat_maps = rc
-    else:
-        print(msg_rc)
-
+    reg_global, msg1 = _safe_load(REG_GLOBAL_PATH, "global regressor")
+    if reg_global is None:
+        print(f"[predict] {msg1}")
+    per_item, msg2 = _safe_load(REG_PER_ITEM_PATH, "per-item regressors")
+    if per_item is None:
+        per_item = {}
+        print(f"[predict] {msg2}")
+    cat_maps, msg3 = _safe_load(REG_CAT_MAPS_PATH, "regressor category mappings")
+    if cat_maps is None:
+        cat_maps = {}
+        print(f"[predict] {msg3}")
     return reg_global, per_item, cat_maps
 
 
 def _build_text_features(df):
-    """
-    Attempt to transform text features using saved TF-IDF + SVD artifacts via src.features.
-    Returns a numpy array (n_rows, n_components). If pipeline missing, returns zeros.
-    """
     try:
         from src.features import transform_text_pipeline
         X_text = transform_text_pipeline(df, text_col='ItemDescription')
@@ -254,34 +266,27 @@ def _build_text_features(df):
     except Exception:
         svd_components = 50
         try:
-            import joblib as _jl
-            svd = _jl.load(os.path.join(ARTIFACTS_DIR, 'svd.pkl'))
-            svd_components = getattr(svd, 'n_components', svd_components)
+            _svd = joblib.load(os.path.join(ARTIFACTS_DIR, 'svd.pkl'))
+            svd_components = getattr(_svd, 'n_components', svd_components)
         except Exception:
             pass
         return np.zeros((len(df), svd_components))
 
 
 def _build_basic_features(df):
-    """
-    Build basic feature frame that matches what trainer expects:
-    columns: PROJECT_CITY, PROJECT_TYPE, CORE_MARKET, UOM, SIZE_BUILDINGSIZE, PROJECT_FREQ
-    """
     try:
         from src.features import add_basic_features
         return add_basic_features(df)
     except Exception:
-        # Minimal fallback: select available columns and coerce types
         cols = ['PROJECT_CITY', 'PROJECT_TYPE', 'CORE_MARKET', 'UOM', 'SIZE_BUILDINGSIZE']
         X = pd.DataFrame()
         for c in cols:
-            X[c] = df.get(c, pd.Series([np.nan]*len(df)))
+            X[c] = df.get(c, pd.Series([np.nan] * len(df)))
         X['SIZE_BUILDINGSIZE'] = pd.to_numeric(X['SIZE_BUILDINGSIZE'], errors='coerce').fillna(0)
         return X
 
 
 def _encode_regressor_objects(X, cat_mappings):
-    """Encode object/category columns using saved mappings (or factorize as fallback)."""
     X_enc = X.copy()
     obj_cols = X_enc.select_dtypes(include=['object', 'category']).columns.tolist()
     for c in obj_cols:
@@ -296,25 +301,18 @@ def _encode_regressor_objects(X, cat_mappings):
 
 
 def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
-    """
-    Predict items and quantities for test CSV.
-    Returns a DataFrame with numeric MasterItemNo and QtyShipped.
-    """
     if not os.path.exists(test_csv):
         raise FileNotFoundError(f"Test CSV not found: {test_csv}")
 
     df_test = pd.read_csv(test_csv)
     df_test = preprocess(df_test)
 
-    # ensure id column exists
     if 'id' not in df_test.columns:
         df_test = df_test.reset_index().rename(columns={'index': 'id'})
         df_test['id'] = df_test['id'] + 1
 
-    # Load trainer (classifier)
     trainer = load_trainer(trainer_path)
 
-    # Build features as used in training
     X_basic = _build_basic_features(df_test)
     X_text = _build_text_features(df_test)
 
@@ -328,10 +326,13 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
         if c in X.columns:
             X[c] = X[c].astype(str).fillna('missing')
 
-    # Classifier predictions (encoded labels)
-    preds_encoded = trainer.predict_classifier(X)
+    try:
+        preds_encoded = trainer.predict_classifier(X)
+    except Exception:
+        print("[predict] trainer.predict_classifier raised exception; falling back to zeros. Traceback:")
+        print(traceback.format_exc())
+        preds_encoded = np.zeros(len(X), dtype=int)
 
-    # Load label encoder to invert labels to original raw MasterItemNo strings
     le = load_label_encoder()
     if le is not None:
         try:
@@ -342,7 +343,6 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
     else:
         preds_raw = [str(int(x)) for x in preds_encoded]
 
-    # Map raw predicted IDs to numeric codes using map_str2int if available;
     map_str2int = load_map_str2int()
     masteritem_out = []
     for s in preds_raw:
@@ -357,7 +357,6 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
             except Exception:
                 masteritem_out.append(0)
 
-    # Load regressors (global + per-item) and categorical mappings for regressor
     reg_global, per_item, cat_mappings = _load_regressors()
 
     med_lookup = _build_median_lookup('data/train.csv')
@@ -381,15 +380,14 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
             try:
                 q = float(per_item[s_key].predict(X_reg_enc.iloc[[i]])[0])
             except Exception:
-                # safe fallback
-                print(f"Per-item regressor failed for item {s_key} at idx {i}:", traceback.format_exc())
+                print(f"[predict] per-item regressor failed for {s_key} idx {i}:", traceback.format_exc())
                 q = None
 
         if q is None and reg_global is not None:
             try:
                 q = float(reg_global.predict(X_reg_enc.iloc[[i]])[0])
             except Exception:
-                print(f"Global regressor failed at idx {i}:", traceback.format_exc())
+                print(f"[predict] global regressor failed idx {i}:", traceback.format_exc())
                 q = None
 
         if q is None:
