@@ -54,7 +54,7 @@ python procurement/link_approved_requests.py
 🌐 Deployment
 
 The app is deployed and publicly accessible here:
-👉 Live Demo Link
+👉 [Live Demo Link](https://ctai-material-forecast-procurement-assistant.streamlit.app/)
 
 📂 Repository
 
@@ -74,3 +74,4 @@ app/streamlit_app.py → Streamlit interface
 requirements.txt → Dependencies
 
 README.md → This file
+
