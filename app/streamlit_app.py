@@ -10,8 +10,9 @@ Covers:
 
 Enhancements in this version:
  - tries to ensure a classifier artifact is available by downloading from a user-provided URL
-   (set env var MODEL_URL) or prompting the user to train/upload the model if missing.
+   (set env var MODEL_URL or add MODEL_URL to Streamlit secrets) or prompting the user to train/upload the model if missing.
  - more defensive imports and clearer diagnostics for missing pieces.
+ - improved MODEL_URL resolution and clearer download diagnostics.
 """
 
 import os
@@ -58,48 +59,93 @@ simple_search_scrape = None
 scrape_indiamart = None
 vendor_import_error = None
 
+
+def _resolve_model_url_from_env_or_secrets():
+    """Return a MODEL_URL string from environment variable or Streamlit secrets if present."""
+    # Priority: ENV var > Streamlit secrets
+    env_val = os.environ.get("MODEL_URL")
+    if env_val and str(env_val).strip():
+        return str(env_val).strip()
+    # Streamlit secrets (when running on Streamlit Cloud / using secrets.toml)
+    try:
+        if hasattr(st, "secrets") and isinstance(st.secrets, dict) and st.secrets.get("MODEL_URL"):
+            return str(st.secrets.get("MODEL_URL")).strip()
+    except Exception:
+        # silence any streamlit secrets access errors
+        pass
+    return None
+
+
 def ensure_model_available():
     """
     Ensure classifier artifact is present. Strategy:
       1) If CLASSIFIER_ARTIFACT exists -> OK
-      2) If environment variable MODEL_URL is set -> try to download (supports Google Drive via gdown or direct URL via requests)
+      2) If MODEL_URL is set (env or Streamlit secrets) -> try to download (supports Google Drive via gdown or direct URL via requests)
       3) Else: instruct user to either (a) push artifact via Git LFS / vendor storage or (b) run training locally.
+    Returns (bool_ok, message)
     """
     if os.path.exists(CLASSIFIER_ARTIFACT):
         return True, "Artifact found locally."
 
-    model_url = os.environ.get("MODEL_URL") or st.secrets.get("MODEL_URL") if "st" in globals() else None
+    model_url = _resolve_model_url_from_env_or_secrets()
     if not model_url:
-        return False, ("Model artifact not found. Set env var MODEL_URL to a publicly downloadable URL (Google Drive/hf/ S3) "
-                       "or place classifier_trainer.pkl into the artifacts/ directory. Or run training locally:\n\n"
-                       "`python -m src.train_model_full --train data/train.csv`")
+        return False, (
+            "Model artifact not found. Set env var MODEL_URL to a publicly downloadable URL (Google Drive/HF/S3) "
+            "or place classifier_trainer.pkl into the artifacts/ directory. Or run training locally:\n\n"
+            "`python -m src.train_model_full --train data/train.csv`"
+        )
 
-    # attempt download
+    # attempt download with diagnostics
     try:
-        # Google Drive share links are commonly used; gdown handles them well
+        parsed = None
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(model_url)
+        except Exception:
+            parsed = None
+
+        # Google Drive share links are commonly used; prefer gdown when appropriate
         if "drive.google.com" in model_url and gdown:
-            st.info("Downloading model via gdown from Google Drive...")
-            gdown.download(model_url, CLASSIFIER_ARTIFACT, quiet=False)
-            return os.path.exists(CLASSIFIER_ARTIFACT), "Downloaded via gdown."
-        # Hugging Face / direct link
-        if requests:
-            st.info("Downloading model via requests...")
-            resp = requests.get(model_url, stream=True, timeout=60)
-            resp.raise_for_status()
-            with open(CLASSIFIER_ARTIFACT, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            return os.path.exists(CLASSIFIER_ARTIFACT), "Downloaded via requests."
+            try:
+                st.info("Downloading model via gdown from Google Drive...")
+                gdown.download(model_url, CLASSIFIER_ARTIFACT, quiet=False)
+                return os.path.exists(CLASSIFIER_ARTIFACT), "Downloaded via gdown."
+            except Exception as e:
+                return False, f"gdown download attempt failed: {e}\n{traceback.format_exc()}"
+
+        # direct HTTP/HTTPS
+        if requests and parsed and parsed.scheme in ("http", "https"):
+            try:
+                st.info("Downloading model via requests...")
+                resp = requests.get(model_url, stream=True, timeout=60)
+                resp.raise_for_status()
+                content_type = resp.headers.get("Content-Type", "")
+                # refuse to save HTML error pages
+                if "text/html" in content_type.lower():
+                    return False, f"Remote URL returned HTML content-type ({content_type}) — check URL/auth."
+                os.makedirs(os.path.dirname(CLASSIFIER_ARTIFACT), exist_ok=True)
+                with open(CLASSIFIER_ARTIFACT, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                return os.path.exists(CLASSIFIER_ARTIFACT), "Downloaded via requests."
+            except Exception as e:
+                return False, f"HTTP download failed: {e}\n{traceback.format_exc()}"
+
         # fallback: try gdown even if not drive
         if gdown:
-            st.info("Attempting download via gdown...")
-            gdown.download(model_url, CLASSIFIER_ARTIFACT, quiet=False)
-            return os.path.exists(CLASSIFIER_ARTIFACT), "Downloaded via gdown fallback."
-    except Exception as e:
-        return False, f"Download failed: {e}"
+            try:
+                st.info("Attempting download via gdown fallback...")
+                gdown.download(model_url, CLASSIFIER_ARTIFACT, quiet=False)
+                return os.path.exists(CLASSIFIER_ARTIFACT), "Downloaded via gdown fallback."
+            except Exception as e:
+                return False, f"gdown fallback failed: {e}\n{traceback.format_exc()}"
 
-    return False, "Model URL provided but download libraries are unavailable."
+        return False, "Model URL provided but download libraries are unavailable in this environment."
+
+    except Exception as e:
+        return False, f"Download failed: {e}\n{traceback.format_exc()}"
+
 
 # attempt to import predict (after ensuring artifact is available or at least giving clear info)
 _model_ok, model_msg = True, "skipped"
