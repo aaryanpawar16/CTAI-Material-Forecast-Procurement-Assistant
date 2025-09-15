@@ -7,6 +7,9 @@ import importlib
 import sys
 import types
 import traceback
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
 
 from src.data_preprocessing import preprocess
 
@@ -30,41 +33,81 @@ except Exception:
     requests = None
 
 
-def _download_model_from_url(url, dest_path):
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+def _download_http_to_file(url: str, dest_path: str, timeout=120) -> bool:
+    """Download HTTP/HTTPS url to dest_path, sanity-checking content-type."""
+    if not requests:
+        return False
     try:
-        if "drive.google.com" in url and gdown:
-            gdown.download(url, dest_path, quiet=False)
-            return os.path.exists(dest_path)
+        resp = requests.get(url, stream=True, timeout=timeout)
+        resp.raise_for_status()
+        content_type = resp.headers.get("Content-Type", "")
+        # common failure: HTML login/error page — catch that early
+        if "text/html" in content_type.lower() or resp.headers.get("Content-Length", "0") == "0":
+            print(f"[download] Refusing to save remote content with Content-Type: {content_type}")
+            return False
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        with open(dest_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        return os.path.exists(dest_path)
+    except Exception:
+        print("[download] HTTP download failed:", traceback.format_exc())
+        return False
+
+
+def _download_model_from_url(url, dest_path):
+    """
+    Try multiple strategies to download a remote model file to dest_path.
+    Supports:
+      - direct HTTP/HTTPS (requests)
+      - Google Drive via gdown (if url looks like drive)
+      - fallback to gdown if present
+    Returns True on success.
+    """
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+    # direct HTTP/HTTPS
+    parsed = urlparse(str(url))
+    scheme = parsed.scheme.lower()
+    if scheme in ("http", "https"):
+        ok = _download_http_to_file(url, dest_path)
+        if ok:
+            return True
+
+    # google drive shortcuts / gdown
+    try:
+        if "drive.google.com" in str(url) and gdown:
+            try:
+                gdown.download(url, dest_path, quiet=False)
+                return os.path.exists(dest_path)
+            except Exception:
+                print("[download] gdown (drive) attempt failed:", traceback.format_exc())
     except Exception:
         pass
-    if requests:
-        try:
-            resp = requests.get(url, stream=True, timeout=120)
-            resp.raise_for_status()
-            with open(dest_path, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            return os.path.exists(dest_path)
-        except Exception:
-            pass
+
+    # fallback: try gdown for other url forms if available
     if gdown:
         try:
             gdown.download(url, dest_path, quiet=False)
             return os.path.exists(dest_path)
         except Exception:
-            pass
+            print("[download] gdown fallback failed:", traceback.format_exc())
+
     return False
 
 
 def ensure_model_available(path=CLASSIFIER_PATH):
+    """
+    Ensure a model exists at `path`. If not present, try to download from MODEL_URL env var.
+    Returns (bool_ok, message_string)
+    """
     if os.path.exists(path):
-        return True, "Model artifact exists."
-    model_url = os.environ.get("MODEL_URL")
+        return True, "Model artifact exists locally."
+    model_url = os.environ.get("MODEL_URL", "").strip()
     if not model_url:
         return False, ("Model artifact not found and MODEL_URL not set. "
-                       "Place classifier_trainer.pkl into artifacts/ or set MODEL_URL env var.")
+                       f"Place {os.path.basename(path)} into {os.path.dirname(path) or '.'} or set MODEL_URL env var.")
     try:
         ok = _download_model_from_url(model_url, path)
         if not ok:
@@ -76,18 +119,19 @@ def ensure_model_available(path=CLASSIFIER_PATH):
 
 def _ensure_unpickle_compat():
     """
-    Best-effort: import train modules and inject likely classes into __main__
-    so pickle can locate them.
+    Best-effort: import training modules and inject likely classes into __main__
+    so pickle can locate them. This helps when the pickled object references
+    project-local classes.
     """
     tried = []
-    for modname in ('src.train_model_full', 'src.train_model'):
+    for modname in ('src.train_model_full', 'src.train_model', 'train_model', 'train'):
         try:
             tm = importlib.import_module(modname)
             main_mod = sys.modules.get('__main__')
             if main_mod is None:
                 main_mod = types.ModuleType('__main__')
                 sys.modules['__main__'] = main_mod
-            for cname in ('BaselineTrainer', 'Trainer', 'QtyRegressor', 'PerItemRegressor'):
+            for cname in ('BaselineTrainer', 'Trainer', 'QtyRegressor', 'PerItemRegressor', 'TrainerFull'):
                 if hasattr(tm, cname) and not hasattr(main_mod, cname):
                     setattr(main_mod, cname, getattr(tm, cname))
             return True, f"Imported {modname}"
@@ -100,7 +144,8 @@ def _ensure_unpickle_compat():
 
 def _safe_load(path, friendly_name):
     """
-    Try loading with joblib but catch and return (obj, message)
+    Try loading with joblib but catch and return (obj, message).
+    Does unpickle compatibility preloading first.
     """
     if not os.path.exists(path):
         return None, f"{friendly_name} not found at {path}"
@@ -114,23 +159,18 @@ def _safe_load(path, friendly_name):
 
 
 def load_label_encoder(path=LABEL_ENCODER_PATH):
-    if not os.path.exists(path):
-        return None
-    try:
-        return joblib.load(path)
-    except Exception:
-        print("[predict] failed to load label encoder:", traceback.format_exc())
-        return None
+    """Load label encoder safely using _safe_load."""
+    le, msg = _safe_load(path, "label encoder")
+    if le is None:
+        print(f"[predict] {msg}")
+    return le
 
 
 def load_map_str2int(path=MAP_STR2INT_PATH):
-    if not os.path.exists(path):
-        return None
-    try:
-        return joblib.load(path)
-    except Exception:
-        print("[predict] failed to load map_str2int:", traceback.format_exc())
-        return None
+    mapping, msg = _safe_load(path, "map_str2int")
+    if mapping is None:
+        print(f"[predict] {msg}")
+    return mapping
 
 
 def _build_median_lookup(train_csv='data/train.csv'):
@@ -152,34 +192,33 @@ def _build_median_lookup(train_csv='data/train.csv'):
 def load_trainer(path=CLASSIFIER_PATH):
     """
     Robust trainer loader:
-    - attempts to ensure artifact is present (download via MODEL_URL if not)
+    - ensures artifact is present (download via MODEL_URL if not)
     - attempts to joblib.load the trainer (with unpickle compatibility)
-    - on failure, returns a DummyTrainer that returns a safe trivial prediction
+    - on repeated failures, returns a DummyTrainer that yields safe trivial predictions
     """
     # ensure artifact present (or attempt download)
     if not os.path.exists(path):
         ok, msg = ensure_model_available(path)
         if not ok:
-            # do not raise here — return dummy trainer below
             print(f"[predict] trainer missing and could not download: {msg}")
         else:
             print(f"[predict] downloaded trainer: {msg}")
 
-    # attempt to load
+    # attempt to load actual trainer
     if os.path.exists(path):
         try:
             _ensure_unpickle_compat()
             trainer = joblib.load(path)
             print(f"[predict] Loaded trainer from {path}")
             return trainer
-        except Exception as e:
+        except Exception:
             print("=== ERROR: failed to load trainer artifact ===")
             print(traceback.format_exc())
 
-    # fallback: build DummyTrainer
+    # If we reach here, build and return a DummyTrainer fallback
     print("[predict] Returning DummyTrainer fallback — predictions will be trivial but app will remain functional.")
 
-    # choose a fallback label: label_encoder first class or most-common in train.csv or "0"
+    # compute a reasonable fallback label
     fallback_label = None
     try:
         le = load_label_encoder()
@@ -202,7 +241,7 @@ def load_trainer(path=CLASSIFIER_PATH):
 
     if fallback_label is None:
         fallback_label = "0"
-        print("[predict] no fallback label, using '0'")
+        print("[predict] no fallback label found — using '0'")
 
     class DummyTrainer:
         def __init__(self, label):
@@ -213,12 +252,15 @@ def load_trainer(path=CLASSIFIER_PATH):
                 self._label_int = None
 
         def predict_classifier(self, X):
+            """
+            Return encoded predictions. Attempt to map via label encoder if available,
+            otherwise return integer label or zeros.
+            """
             n = len(X)
-            # Try to use label_encoder to map to encoded integers if possible
             try:
                 le = load_label_encoder()
                 if le is not None:
-                    # If le has transform, try it
+                    # If label encoder has transform:
                     try:
                         arr = le.transform([self._label] * n)
                         return np.array(arr, dtype=int)
@@ -262,7 +304,8 @@ def _build_text_features(df):
     try:
         from src.features import transform_text_pipeline
         X_text = transform_text_pipeline(df, text_col='ItemDescription')
-        return X_text
+        # ensure numpy array
+        return np.asarray(X_text)
     except Exception:
         svd_components = 50
         try:
@@ -319,8 +362,13 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
     X = X_basic.reset_index(drop=True).copy()
     if X_text is None:
         X_text = np.zeros((len(X), 0))
-    for i in range(X_text.shape[1]):
-        X[f'svd_{i}'] = X_text[:, i]
+    # If X_text is numpy with shape (n, k), append as new columns
+    if hasattr(X_text, "shape") and X_text.shape[1] > 0:
+        for i in range(X_text.shape[1]):
+            X[f'svd_{i}'] = X_text[:, i]
+    else:
+        # ensure at least 0 svd columns
+        pass
 
     for c in ['PROJECT_CITY', 'PROJECT_TYPE', 'CORE_MARKET', 'UOM']:
         if c in X.columns:
@@ -328,6 +376,7 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
 
     try:
         preds_encoded = trainer.predict_classifier(X)
+        preds_encoded = np.asarray(preds_encoded).astype(int)
     except Exception:
         print("[predict] trainer.predict_classifier raised exception; falling back to zeros. Traceback:")
         print(traceback.format_exc())
@@ -419,7 +468,10 @@ def predict_on_test(test_csv='data/test.csv', trainer_path=CLASSIFIER_PATH):
 
 
 if __name__ == '__main__':
-    out = predict_on_test()
-    os.makedirs('submission', exist_ok=True)
-    out.to_csv('submission/submission.csv', index=False)
-    print('Wrote submission/submission.csv')
+    try:
+        out = predict_on_test()
+        os.makedirs('submission', exist_ok=True)
+        out.to_csv('submission/submission.csv', index=False)
+        print('Wrote submission/submission.csv')
+    except Exception:
+        print("[predict] Unhandled exception in main:", traceback.format_exc())
