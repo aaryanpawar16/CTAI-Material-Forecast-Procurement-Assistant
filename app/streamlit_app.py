@@ -496,32 +496,21 @@ if reqs:
                 if rr.get('id') == target_id:
                     rr['status'] = new_status
             save_requests(reqs_list)
-            # immediately reload requests to reflect changes without relying on rerun
+            # try to reload immediately so the local 'reqs' reflects saved state
             try:
                 updated = load_requests()
                 reqs.clear()
                 reqs.extend(updated)
-                st.session_state['_requests_updated'] = True
             except Exception:
-                # if reload fails, at least keep the saved state on disk
                 pass
 
         if c3.button("Approve", key=approve_key):
             _set_status_and_save(reqs, req_id, "Approved")
-            # attempt to rerun safely; if it fails, show a friendly note
-            try:
-                st.experimental_rerun()
-            except Exception as e:
-                st.success(f"Request #{req_id} approved. Please refresh the page to see the update if it doesn't appear automatically.")
-                st.write(f"[debug] rerun failed: {e}")
+            st.success(f"Request #{req_id} approved.")
 
         if c3.button("Reject", key=reject_key):
             _set_status_and_save(reqs, req_id, "Rejected")
-            try:
-                st.experimental_rerun()
-            except Exception as e:
-                st.success(f"Request #{req_id} rejected. Please refresh the page to see the update if it doesn't appear automatically.")
-                st.write(f"[debug] rerun failed: {e}")
+            st.success(f"Request #{req_id} rejected.")
 
     if not reqs:
         st.info("No requests yet")
