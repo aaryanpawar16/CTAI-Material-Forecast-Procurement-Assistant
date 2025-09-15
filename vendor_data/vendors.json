@@ -1,13 +1,13 @@
 {
   "items": [
     {
-      "MasterItemNo": 288,
+      "MasterItemNo": 511,
       "vendors": [
         {
-          "company": "Placeholder Vendor for 288 A",
+          "company": "Placeholder Vendor for 511 A",
           "url": "https://example-vendor-a.com",
           "location": "Nearest metro",
-          "contact": "procure+288@example.com",
+          "contact": "procure+511@example.com",
           "lead_time_days": 14,
           "min_order_qty": 1
         },
@@ -22,21 +22,21 @@
       ]
     },
     {
-      "MasterItemNo": 433,
+      "MasterItemNo": 303,
       "vendors": [
         {
-          "company": "Placeholder Vendor for 433 A",
+          "company": "Placeholder Vendor for 303 A",
           "url": "https://example-vendor-a.com",
           "location": "Nearest metro",
-          "contact": "procure+433@example.com",
+          "contact": "procure+303@example.com",
           "lead_time_days": 14,
           "min_order_qty": 1
         },
         {
-          "company": "Placeholder Vendor for 433 B",
+          "company": "Placeholder Vendor for 303 B",
           "url": "https://example-vendor-b.com",
           "location": "Nearby city",
-          "contact": "sales+433@example.com",
+          "contact": "sales+303@example.com",
           "lead_time_days": 21,
           "min_order_qty": 10
         }
@@ -64,21 +64,21 @@
       ]
     },
     {
-      "MasterItemNo": 93,
+      "MasterItemNo": 50,
       "vendors": [
         {
-          "company": "Placeholder Vendor for 93 A",
+          "company": "Placeholder Vendor for 50 A",
           "url": "https://example-vendor-a.com",
           "location": "Nearest metro",
-          "contact": "procure+93@example.com",
+          "contact": "procure+50@example.com",
           "lead_time_days": 14,
           "min_order_qty": 1
         },
         {
-          "company": "Placeholder Vendor for 93 B",
+          "company": "Placeholder Vendor for 50 B",
           "url": "https://example-vendor-b.com",
           "location": "Nearby city",
-          "contact": "sales+93@example.com",
+          "contact": "sales+50@example.com",
           "lead_time_days": 21,
           "min_order_qty": 10
         }
@@ -106,21 +106,21 @@
       ]
     },
     {
-      "MasterItemNo": 416,
+      "MasterItemNo": 411,
       "vendors": [
         {
-          "company": "Placeholder Vendor for 416 A",
+          "company": "Placeholder Vendor for 411 A",
           "url": "https://example-vendor-a.com",
           "location": "Nearest metro",
-          "contact": "procure+416@example.com",
+          "contact": "procure+411@example.com",
           "lead_time_days": 14,
           "min_order_qty": 1
         },
         {
-          "company": "Placeholder Vendor for 416 B",
+          "company": "Placeholder Vendor for 411 B",
           "url": "https://example-vendor-b.com",
           "location": "Nearby city",
-          "contact": "sales+416@example.com",
+          "contact": "sales+411@example.com",
           "lead_time_days": 21,
           "min_order_qty": 10
         }
@@ -421,4 +421,5 @@
       ]
     }
   ]
+
 }
